@@ -2,7 +2,6 @@ package com.example.dalat.data
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
-import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
@@ -29,9 +28,7 @@ val supabase: SupabaseClient by lazy {
         // joined_at, ...). Without ignoreUnknownKeys every SELECT would throw.
         defaultSerializer = KotlinXSerializer(Json { ignoreUnknownKeys = true })
 
-        install(Auth) {
-            flowType = FlowType.PKCE
-        }
+        install(Auth)
         install(Postgrest)
         install(Realtime)
     }

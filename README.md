@@ -46,8 +46,13 @@ có sẵn Gradle/JDK nên không build trên đó được. Cần `vercel login`
 
 - Project ref: `gkqtbmidixjhrlxcgagh` (region `ap-southeast-1`)
 - `supabase/migrations/` là nguồn sự thật của schema
-- Đăng nhập bằng Google OAuth; cần bật provider Google trong dashboard và khai
-  báo redirect URL cho cả `localhost:8080` lẫn origin trên Vercel
+- Đăng nhập bằng **tên + mật khẩu**. Supabase không có provider
+  username/password nên tên được fold thành địa chỉ tổng hợp
+  (`Lê Đức` → `le.duc@dalat.local`), xem `domain/AccountName.kt`.
+- **Bắt buộc**: tắt *Confirm email* trong Auth → Providers → Email. Các địa chỉ
+  `@dalat.local` không nhận được thư, nên nếu bật xác nhận thì signup sẽ fail.
+- Quên mật khẩu thì reset tay trong dashboard (Authentication → Users), không có
+  luồng khôi phục qua email.
 
 Khoá anon nằm trong `shared/src/commonMain/kotlin/com/example/dalat/data/SupabaseClient.kt`
 là cố ý — khoá đó thiết kế để nhúng vào client, RLS mới là thứ bảo vệ dữ liệu.
