@@ -1,9 +1,14 @@
 package com.example.dalat.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -12,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.dalat.domain.formatVnd
 
@@ -44,21 +50,43 @@ fun SectionCard(
     }
 }
 
+private val QUICK_STEPS = listOf(10_000L, 50_000L, 100_000L, 500_000L)
+
 // Digits only: VND has no sub-unit, and a text field that silently accepts
-// "12.5" would round-trip into the wrong amount.
+// "12.5" would round-trip into the wrong amount. Quick-add chips exist because
+// typing six digits for every bowl of phở gets old fast.
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AmountField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
     modifier: Modifier = Modifier,
+    quickAdd: Boolean = true,
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = { input -> onValueChange(input.filter { it.isDigit() }.take(12)) },
-        label = { Text(label) },
-        supportingText = { Text(formatVnd(value.toLongOrNull() ?: 0L)) },
-        singleLine = true,
-        modifier = modifier.fillMaxWidth(),
-    )
+    val current = value.toLongOrNull() ?: 0L
+    Column(modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = { input -> onValueChange(input.filter { it.isDigit() }.take(12)) },
+            label = { Text(label) },
+            supportingText = { Text(formatVnd(current)) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (quickAdd) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                QUICK_STEPS.forEach { step ->
+                    AssistChip(
+                        onClick = { onValueChange((current + step).toString()) },
+                        label = { Text("+${step / 1_000}k") },
+                    )
+                }
+                if (current > 0) {
+                    AssistChip(onClick = { onValueChange("") }, label = { Text("Xoá") })
+                }
+            }
+        }
+    }
 }

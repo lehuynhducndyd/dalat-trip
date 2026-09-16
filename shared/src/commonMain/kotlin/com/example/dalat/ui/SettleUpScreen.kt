@@ -20,14 +20,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.dalat.domain.formatVnd
 import com.example.dalat.ui.components.MoneyText
 import com.example.dalat.ui.components.SectionCard
-
-private val Owed = Color(0xFF1B5E20)
-private val Owes = Color(0xFFB3261E)
 
 @Composable
 fun SettleUpScreen(state: TripUiState, onMarkPaid: (String, String, Boolean) -> Unit) {
@@ -51,7 +47,11 @@ fun SettleUpScreen(state: TripUiState, onMarkPaid: (String, String, Boolean) -> 
                     Column(horizontalAlignment = Alignment.End) {
                         MoneyText(
                             balance.net,
-                            color = if (balance.net >= 0) Owed else Owes,
+                            color = if (balance.net >= 0) {
+                                BalancePositive
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            },
                             bold = true,
                         )
                         Text(

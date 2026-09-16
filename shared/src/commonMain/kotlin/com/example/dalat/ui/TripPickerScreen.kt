@@ -8,11 +8,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,10 +29,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.dalat.data.AuthRepository
 import com.example.dalat.data.TripRepository
+import com.example.dalat.domain.formatDateVi
+import com.example.dalat.domain.isoDateFromEpochMillis
 import com.example.dalat.model.Trip
 import com.example.dalat.ui.components.SectionCard
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TripPickerScreen(onTripOpened: (String) -> Unit) {
     val scope = rememberCoroutineScope()
@@ -38,6 +46,30 @@ fun TripPickerScreen(onTripOpened: (String) -> Unit) {
     var joinCode by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState()
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    enabled = datePickerState.selectedDateMillis != null,
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let {
+                            startDate = isoDateFromEpochMillis(it)
+                        }
+                        showDatePicker = false
+                    },
+                ) { Text("Chọn") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Huỷ") }
+            },
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     LaunchedEffect(Unit) {
         error = runCatching { trips = TripRepository.listTrips() }.exceptionOrNull()?.message
@@ -57,7 +89,10 @@ fun TripPickerScreen(onTripOpened: (String) -> Unit) {
                             .padding(vertical = 12.dp),
                     ) {
                         Text(trip.name, style = MaterialTheme.typography.titleSmall)
-                        Text("Mã: ${trip.tripCode} · ${trip.dayCount} ngày từ ${trip.startDate}")
+                        Text(
+                            "Mã ${trip.tripCode} · ${trip.dayCount} ngày từ ${formatDateVi(trip.startDate)}",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                     HorizontalDivider()
                 }
@@ -80,13 +115,18 @@ fun TripPickerScreen(onTripOpened: (String) -> Unit) {
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
-                value = startDate,
-                onValueChange = { startDate = it },
-                label = { Text("Ngày bắt đầu (YYYY-MM-DD)") },
-                singleLine = true,
+            OutlinedButton(
+                onClick = { showDatePicker = true },
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            )
+            ) {
+                Text(
+                    if (startDate.isEmpty()) {
+                        "Chọn ngày bắt đầu"
+                    } else {
+                        "Bắt đầu: ${formatDateVi(startDate)}"
+                    },
+                )
+            }
             Button(
                 enabled = !busy && displayName.isNotBlank() && startDate.length == 10,
                 onClick = {

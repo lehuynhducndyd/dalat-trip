@@ -1,8 +1,9 @@
 package com.example.dalat.ui
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,13 +24,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.dalat.domain.SplitCalculator
+import com.example.dalat.domain.currentTripDay
 import com.example.dalat.domain.formatVnd
 import com.example.dalat.model.Category
 import com.example.dalat.model.ExpenseType
 import com.example.dalat.model.NewExpense
 import com.example.dalat.ui.components.AmountField
 import com.example.dalat.ui.components.SectionCard
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AddExpenseScreen(
     state: TripUiState,
@@ -41,7 +47,11 @@ fun AddExpenseScreen(
     var category by remember { mutableStateOf(Category.GROUP_MEAL) }
     var amountText by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
-    var day by remember { mutableStateOf(1) }
+    // Default to the day the trip is actually on, so the common case needs no tap.
+    var day by remember(trip.id) {
+        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        mutableStateOf(currentTripDay(trip.startDate, trip.dayCount, today))
+    }
     var payerId by remember {
         mutableStateOf(state.currentMemberId ?: state.members.firstOrNull()?.id ?: "")
     }
@@ -71,32 +81,34 @@ fun AddExpenseScreen(
         Text("Thêm chi tiêu", style = MaterialTheme.typography.headlineSmall)
 
         SectionCard("Loại chi tiêu") {
-            ExpenseType.entries.forEach { entry ->
-                FilterChip(
-                    selected = type == entry,
-                    onClick = { type = entry },
-                    label = {
-                        Text(
-                            when (entry) {
-                                ExpenseType.GROUP -> "Nhóm — chia đều"
-                                ExpenseType.PERSONAL_SELF -> "Cá nhân — tự trả"
-                                ExpenseType.PERSONAL_ITEMIZED -> "Trả hộ — mỗi người một giá"
-                            },
-                        )
-                    },
-                    modifier = Modifier.padding(vertical = 2.dp),
-                )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ExpenseType.entries.forEach { entry ->
+                    FilterChip(
+                        selected = type == entry,
+                        onClick = { type = entry },
+                        label = {
+                            Text(
+                                when (entry) {
+                                    ExpenseType.GROUP -> "Nhóm — chia đều"
+                                    ExpenseType.PERSONAL_SELF -> "Cá nhân — tự trả"
+                                    ExpenseType.PERSONAL_ITEMIZED -> "Trả hộ — mỗi người một giá"
+                                },
+                            )
+                        },
+                    )
+                }
             }
         }
 
         SectionCard("Người trả") {
-            state.members.forEach { member ->
-                FilterChip(
-                    selected = payerId == member.id,
-                    onClick = { payerId = member.id },
-                    label = { Text(member.displayName) },
-                    modifier = Modifier.padding(vertical = 2.dp),
-                )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                state.members.forEach { member ->
+                    FilterChip(
+                        selected = payerId == member.id,
+                        onClick = { payerId = member.id },
+                        label = { Text(member.displayName) },
+                    )
+                }
             }
         }
 
@@ -107,6 +119,8 @@ fun AddExpenseScreen(
                         value = itemAmounts[member.id].orEmpty(),
                         onValueChange = { itemAmounts = itemAmounts + (member.id to it) },
                         label = member.displayName,
+                        // One chip row per member would bury the form.
+                        quickAdd = false,
                     )
                 }
                 Text("Tổng hoá đơn: ${formatVnd(itemTotal)}", Modifier.padding(top = 8.dp))
@@ -123,19 +137,20 @@ fun AddExpenseScreen(
 
         if (type == ExpenseType.GROUP) {
             SectionCard("Chia cho ai") {
-                state.members.forEach { member ->
-                    FilterChip(
-                        selected = member.id in participants,
-                        onClick = {
-                            participants = if (member.id in participants) {
-                                participants - member.id
-                            } else {
-                                participants + member.id
-                            }
-                        },
-                        label = { Text(member.displayName) },
-                        modifier = Modifier.padding(vertical = 2.dp),
-                    )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    state.members.forEach { member ->
+                        FilterChip(
+                            selected = member.id in participants,
+                            onClick = {
+                                participants = if (member.id in participants) {
+                                    participants - member.id
+                                } else {
+                                    participants + member.id
+                                }
+                            },
+                            label = { Text(member.displayName) },
+                        )
+                    }
                 }
                 if (participants.isNotEmpty() && amount > 0) {
                     Text(
@@ -147,24 +162,24 @@ fun AddExpenseScreen(
         }
 
         SectionCard("Hạng mục") {
-            Category.entries.forEach { entry ->
-                FilterChip(
-                    selected = category == entry,
-                    onClick = { category = entry },
-                    label = { Text(entry.label) },
-                    modifier = Modifier.padding(vertical = 2.dp),
-                )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Category.entries.forEach { entry ->
+                    FilterChip(
+                        selected = category == entry,
+                        onClick = { category = entry },
+                        label = { Text(entry.label) },
+                    )
+                }
             }
         }
 
         SectionCard("Ngày") {
-            Row(Modifier.horizontalScroll(rememberScrollState())) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 (1..trip.dayCount).forEach { d ->
                     FilterChip(
                         selected = day == d,
                         onClick = { day = d },
                         label = { Text("Ngày $d") },
-                        modifier = Modifier.padding(end = 6.dp),
                     )
                 }
             }
