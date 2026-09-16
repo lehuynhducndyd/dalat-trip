@@ -1410,22 +1410,8 @@ import com.example.dalat.model.Trip
 import com.example.dalat.model.TripMember
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-
-@Serializable
-private data class CreateTripParams(
-    @SerialName("p_name") val name: String,
-    @SerialName("p_start_date") val startDate: String,
-    @SerialName("p_day_count") val dayCount: Int,
-    @SerialName("p_display_name") val displayName: String,
-)
-
-@Serializable
-private data class JoinTripParams(
-    @SerialName("p_trip_code") val tripCode: String,
-    @SerialName("p_display_name") val displayName: String,
-)
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 object TripRepository {
     suspend fun listTrips(): List<Trip> =
@@ -1445,15 +1431,28 @@ object TripRepository {
         startDate: String,
         dayCount: Int,
         displayName: String,
-    ): String = supabase.postgrest
-        .rpc("create_trip", CreateTripParams(name, startDate, dayCount, displayName))
-        .decodeAs<String>()
+    ): String = supabase.postgrest.rpc(
+        "create_trip",
+        buildJsonObject {
+            put("p_name", name)
+            put("p_start_date", startDate)
+            put("p_day_count", dayCount)
+            put("p_display_name", displayName)
+        },
+    ).decodeAs<String>()
 
-    suspend fun joinTrip(tripCode: String, displayName: String): String = supabase.postgrest
-        .rpc("join_trip", JoinTripParams(tripCode, displayName))
-        .decodeAs<String>()
+    suspend fun joinTrip(tripCode: String, displayName: String): String = supabase.postgrest.rpc(
+        "join_trip",
+        buildJsonObject {
+            put("p_trip_code", tripCode)
+            put("p_display_name", displayName)
+        },
+    ).decodeAs<String>()
 }
 ```
+
+supabase-kt 3.8.0's `rpc` takes a `JsonObject`, not an arbitrary `@Serializable`
+class — the only place in this plan where the predicted API surface was wrong.
 
 - [ ] **Step 2: Wire a temporary probe into `App()`**
 
