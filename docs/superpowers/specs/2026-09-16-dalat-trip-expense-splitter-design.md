@@ -29,8 +29,9 @@ khác sau này (mỗi chuyến đi là một `trip` độc lập).
   **Trip Code** để join trip đã có sẵn (trip code là cơ chế mời/join, không
   phải cơ chế xác thực — xác thực đã do Google lo).
 - Một Google account có thể là thành viên của nhiều trip.
-- `display_name` mặc định lấy từ Google profile (`full_name`), cho phép sửa
-  riêng theo từng trip (vd. để hiển thị biệt danh).
+- `display_name` được đặt lúc tạo/join trip, mặc định điền sẵn từ Google profile
+  (`full_name`) và sửa được ngay tại màn hình đó. Không có màn hình đổi tên về
+  sau — với nhóm 5 người quen nhau thì không đáng làm.
 
 ## 4. Ba loại chi tiêu
 
@@ -53,6 +54,8 @@ create table trips (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   trip_code text not null unique,       -- short human-friendly join code, e.g. "DALAT926"
+  start_date date not null,             -- lets the UI default the day picker to today's trip day
+  day_count int not null default 5,
   created_by uuid not null references auth.users(id),
   created_at timestamptz not null default now()
 );
@@ -76,9 +79,9 @@ create table expenses (
   payer_member_id uuid not null references trip_members(id),
   type expense_type not null,
   category text not null,               -- e.g. 'lodging', 'transport', 'group_meal', 'breakfast', 'drinks', 'other'
-  amount numeric(12,0) not null check (amount > 0), -- VND, no decimals
+  amount bigint not null check (amount > 0), -- VND, integer đồng (no decimals)
   note text,
-  trip_day int not null,                -- 1..5
+  trip_day int not null,                -- 1..day_count
   created_by uuid not null references auth.users(id),
   created_at timestamptz not null default now()
 );
@@ -91,7 +94,7 @@ create table expense_shares (
   id uuid primary key default gen_random_uuid(),
   expense_id uuid not null references expenses(id) on delete cascade,
   member_id uuid not null references trip_members(id),
-  amount numeric(12,0) not null check (amount >= 0),
+  amount bigint not null check (amount >= 0),
   unique (expense_id, member_id)
 );
 
@@ -110,14 +113,32 @@ create table settlement_marks (
 
 ### RLS policy design
 
-- `trips`: readable/insertable by any authenticated user; only `created_by` can
-  update/delete.
-- `trip_members`: readable by any member of the same trip; a user can insert
-  their own membership row (self-join via trip code, validated in app logic
-  before insert); only the row's own `user_id` can update their `display_name`.
-- `expenses`, `expense_shares`, `settlement_marks`: readable/writable only by
-  users whose `auth.uid()` has a matching row in `trip_members` for that
-  `trip_id`. Update/delete on `expenses` restricted to `created_by = auth.uid()`.
+Every table has RLS enabled. Two `SECURITY DEFINER` helpers carry the weight:
+
+- **`is_trip_member(p_trip_id uuid) returns boolean`** — the membership test used
+  by every policy. It MUST be `SECURITY DEFINER`: a policy on `trip_members`
+  that queries `trip_members` directly causes infinite RLS recursion, and
+  `SECURITY DEFINER` bypasses RLS inside the function body, breaking the cycle.
+- **`join_trip(p_trip_code text, p_display_name text) returns uuid`** — resolves
+  a trip code to a trip and inserts the caller's `trip_members` row. Needed
+  because of a chicken-and-egg problem: a user must read a trip to join it, but
+  the read policy requires already being a member. Routing the join through a
+  `SECURITY DEFINER` RPC avoids having to make the whole `trips` table
+  world-readable just so codes can be looked up.
+
+Policies:
+
+- `trips`: SELECT where `is_trip_member(id)`; INSERT by any authenticated user
+  (`created_by = auth.uid()`); UPDATE/DELETE only by `created_by`.
+- `trip_members`: SELECT where `is_trip_member(trip_id)`; INSERT only via
+  `join_trip` / trip creation; UPDATE only own row (`user_id = auth.uid()`).
+- `expenses`, `expense_shares`, `settlement_marks`: SELECT/INSERT where
+  `is_trip_member(trip_id)`; UPDATE/DELETE on `expenses` additionally require
+  `created_by = auth.uid()`. `expense_shares` derives its trip from its parent
+  expense.
+- Realtime: `expenses`, `expense_shares` and `settlement_marks` are added to the
+  `supabase_realtime` publication so clients get change events; RLS still
+  applies to the streamed rows.
 
 ## 6. Settlement algorithm
 
@@ -144,12 +165,16 @@ create table settlement_marks (
 - **Trip picker** — list of trips the user belongs to, "Create trip" /
   "Join with code" actions.
 - **Expense feed** (default tab after entering a trip) — reverse-chronological
-  list, real-time via Supabase Realtime subscription on `expenses`, filter by
-  day/category/type. FAB to add expense.
-- **Add/Edit expense** — pick type (group / personal self / personal
-  itemized), category, day, amount; for group pick participants (checkboxes,
-  default all); for itemized enter per-person amount; only creator can
-  edit/delete their own entries.
+  list, real-time via Supabase Realtime subscription on `expenses`, with a day
+  filter. FAB to add expense. Category and type breakdowns live on the
+  dashboard instead of duplicating them as feed filters.
+- **Add expense** — pick type (group / personal self / personal itemized),
+  category, day, amount; for group pick participants (chips, default all); for
+  itemized enter a per-person amount and let the total be the sum of them.
+- **Delete expense** — only the creator can delete their own entries. There is
+  deliberately no edit screen: correcting an entry means deleting and re-adding
+  it, which avoids a second code path that has to keep an expense and its
+  shares reconciled.
 - **Dashboard** — total trip spend, spend by day, spend by category, spend by
   person (paid vs. owed).
 - **Settle up** — simplified transaction list + detailed breakdown, as in §6.
@@ -159,26 +184,40 @@ touch targets, currency formatted as VND with thousands separators.
 
 ## 8. Tech architecture
 
-- **Frontend**: existing KMP scaffold. `shared` module holds Compose UI +
+- **Frontend**: existing KMP scaffold (Kotlin 2.4.20, Compose Multiplatform
+  1.12.0, targets `js` + `wasmJs` only). `shared` module holds Compose UI +
   business logic (split/settlement calc, models); `webApp` module is the Web
-  entry point. Prefer **wasmJs** target (`wasmJsBrowserDevelopmentRun` /
-  `wasmJsBrowserDistribution`); fall back to **js** target if a required
-  dependency (notably the Supabase Kotlin SDK) lacks stable wasmJs support —
-  verify this early, it is the main technical risk in this plan.
+  entry point. Ship the **wasmJs** target
+  (`wasmJsBrowserDevelopmentRun` / `wasmJsBrowserDistribution`). Because `js`
+  and `wasmJs` are the only targets, all dependencies live in `commonMain`.
+- **Verified dependency stack**: `supabase-kt` 3.8.0 publishes `-wasm-js`
+  artifacts for `supabase-kt`, `auth-kt`, `postgrest-kt` and `realtime-kt`, and
+  pulls Ktor 3.5.1; `ktor-client-js` has a `wasm-js` variant that supports
+  WebSockets (required by Realtime). No JS fallback needed.
 - **Backend**: Supabase project — Postgres (schema in §5), Row Level Security
   (policies in §5), Realtime (broadcast on `expenses`, `settlement_marks`),
   Auth (Google OAuth provider enabled in Supabase dashboard). Accessed from
   Kotlin via the `supabase-kt` client library (Postgrest, Auth, Realtime
   modules) — no custom backend server needed.
-- **Hosting**: static build output deployed to **Vercel** as a static site
-  (`vercel.json` with the wasmJs/js distribution output directory).
+- **Hosting**: **Vercel as a pure static host, deployed prebuilt.** Vercel's
+  build image is Node-oriented and has no supported Gradle/JDK toolchain, so
+  the Kotlin/Wasm bundle is built locally (or in CI) with
+  `./gradlew :webApp:wasmJsBrowserDistribution` and the resulting directory is
+  deployed with `vercel deploy --prebuilt` (or `vercel deploy` from the output
+  directory). A `vercel.json` supplies the SPA rewrite and the
+  `application/wasm` content type.
 
 ## 9. Open risks to verify during implementation
 
-- `supabase-kt` wasmJs target maturity — check before committing to wasmJs;
-  fall back to jsMain if broken.
-- Google OAuth redirect flow in a Kotlin/Wasm SPA hosted on Vercel — confirm
-  Supabase Auth redirect URLs work with the static hosting setup (no
-  server-side callback route available).
-- Trip code collision handling on trip creation (retry with a new random code
-  on unique-constraint violation).
+- **Auth session persistence on wasmJs** — confirm that after signing in with
+  Google and reloading the page, the session is restored. If supabase-kt's
+  default session manager does not persist on wasmJs, implement a custom
+  `SessionManager` backed by `window.localStorage`.
+- **Google OAuth redirect flow in a static SPA** — no server-side callback route
+  exists, so the Supabase "Site URL" and "Redirect URLs" must list both the
+  local dev origin and the deployed Vercel origin, and the PKCE code exchange
+  must complete client-side on page load.
+- **Realtime under RLS** — verify change events actually arrive for a second
+  signed-in member, not just the row's author.
+- **Trip code collision** on trip creation — retry with a new random code on
+  unique-constraint violation.
