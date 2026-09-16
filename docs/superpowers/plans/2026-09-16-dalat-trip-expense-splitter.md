@@ -3083,6 +3083,17 @@ git commit -m "chore: add Vercel static deploy pipeline and project README"
 
 ## Appendix: Things that will bite
 
+- **`import.meta` and the script tag.** The Kotlin/Wasm glue emits `import.meta`,
+  which is a `SyntaxError` in a classic script. The JetBrains scaffold ships
+  `<script type="application/javascript" src="webApp.js">`, so the bundle throws
+  before Compose mounts and the page renders *nothing* — with no build error. It
+  must be `type="module"`. The same rule breaks webpack's default dev devtool,
+  which wraps modules in `eval()` where `import.meta` is equally illegal, so the
+  `wasmJs` browser target needs `commonWebpackConfig { devtool = "source-map" }`.
+  A green build proves nothing here — load the page and check the console.
+- **`:shared:wasmJsTest` stays broken** even with that devtool fix, because Karma
+  loads the test bundle as a classic script. Use `:shared:jsTest`.
+
 - **RLS recursion.** Any new policy that reads `trip_members` must go through `is_trip_member()`, never a direct subquery.
 - **`postgresChangeFlow` before `subscribe()`.** Creating a change flow on an already-subscribed channel silently delivers nothing.
 - **Shares must reconcile.** `ExpenseRepository.addExpense` requires `shares.values.sum() == expense.amount`. If a new expense type is added, keep that invariant or the settlement math silently drifts.
