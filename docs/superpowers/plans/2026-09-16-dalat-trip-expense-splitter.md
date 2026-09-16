@@ -19,7 +19,13 @@
 - Package root is `com.example.dalat`. Existing scaffold files live there.
 - Money is **VND as `Long` đồng** everywhere — Kotlin `Long`, Postgres `bigint`. Never `Double`, never `Float`. Splits must reconcile to the đồng: the sum of an expense's shares must exactly equal the expense amount.
 - UI copy is Vietnamese. Currency renders as `1.234.567 ₫` (dot thousands separators).
-- Tests are `kotlin-test` in `shared/src/commonTest/`, run with `./gradlew :shared:wasmJsTest`.
+- Tests are `kotlin-test` in `shared/src/commonTest/`, run with **`./gradlew :shared:jsTest`**.
+  `:shared:wasmJsTest` is broken in this toolchain — the Karma bundle for the wasm
+  target dies with `Uncaught SyntaxError: Cannot use 'import.meta' outside a module`
+  and reports "no tests discovered". Everything under test is pure `commonMain`
+  Kotlin, so running it on the `js` target proves the same code; the app still
+  *ships* as wasmJs, which compiles and bundles fine. Wherever a task below says
+  `:shared:wasmJsTest --tests "*Foo*"`, run `:shared:jsTest --tests "*Foo*"`.
 - Never commit real Supabase keys before Task 2 decides where they live. The anon/publishable key is safe in client code (RLS protects the data); the **service role key must never appear in this repo**.
 - Commit after every task. Conventional commit prefixes (`feat:`, `test:`, `chore:`).
 
