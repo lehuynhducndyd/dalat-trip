@@ -24,6 +24,28 @@ import androidx.compose.ui.unit.dp
 import com.example.dalat.data.AuthRepository
 import kotlinx.coroutines.launch
 
+// Translate the cases worth translating and show the server's own words for
+// everything else. Guessing a cause hides the real one — an email-rate-limit
+// failure reported as "tên này đã có người dùng" sends you looking in the wrong
+// place entirely.
+private fun authErrorMessage(cause: Throwable, creatingAccount: Boolean): String {
+    val raw = cause.message.orEmpty()
+    return when {
+        raw.contains("over_email_send_rate_limit") || raw.contains("email rate limit") ->
+            "Supabase đang chặn vì gửi quá nhiều email xác nhận. " +
+                "Cần tắt \"Confirm email\" trong Auth → Providers → Email."
+        raw.contains("user_already_exists") || raw.contains("already registered") ->
+            "Tên này đã có người dùng. Chọn tên khác, hoặc đăng nhập."
+        raw.contains("invalid_credentials") || raw.contains("Invalid login") ->
+            "Sai tên hoặc mật khẩu."
+        raw.contains("weak_password") ->
+            "Mật khẩu quá yếu, cần ít nhất 6 ký tự."
+        raw.isBlank() ->
+            if (creatingAccount) "Tạo tài khoản thất bại." else "Đăng nhập thất bại."
+        else -> raw
+    }
+}
+
 @Composable
 fun SignInScreen() {
     val scope = rememberCoroutineScope()
@@ -87,13 +109,7 @@ fun SignInScreen() {
                             AuthRepository.signIn(name, password)
                         }
                     }
-                    result.onFailure {
-                        error = if (creatingAccount) {
-                            "Tạo tài khoản thất bại. Có thể tên này đã có người dùng."
-                        } else {
-                            "Sai tên hoặc mật khẩu."
-                        }
-                    }
+                    result.onFailure { error = authErrorMessage(it, creatingAccount) }
                     busy = false
                 }
             },
