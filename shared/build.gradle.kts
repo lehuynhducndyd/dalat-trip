@@ -15,7 +15,13 @@ kotlin {
     
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
-        browser()
+        browser {
+            // See webApp/build.gradle.kts: eval-wrapped modules break on
+            // `import.meta`, which also makes the Karma test bundle unloadable.
+            commonWebpackConfig {
+                devtool = "source-map"
+            }
+        }
         binaries.executable()
     }
     
