@@ -23,12 +23,18 @@ khác sau này (mỗi chuyến đi là một `trip` độc lập).
 
 ## 3. Auth & trip membership
 
-- Đăng nhập bằng **Google OAuth** qua Supabase Auth. Không có tài khoản
-  email/password riêng.
-- Sau khi đăng nhập Google lần đầu, user hoặc tạo trip mới, hoặc nhập
-  **Trip Code** để join trip đã có sẵn (trip code là cơ chế mời/join, không
-  phải cơ chế xác thực — xác thực đã do Google lo).
-- Một Google account có thể là thành viên của nhiều trip.
+- Đăng nhập bằng **tên + mật khẩu**. Supabase Auth không có provider
+  username/password, nên tên được fold thành một địa chỉ tổng hợp
+  (`Lê Đức` → `le.duc@dalat.local`) và password auth thật của Supabase làm
+  phần việc còn lại. Thành viên chỉ bao giờ nhìn thấy ô "Tên" và "Mật khẩu".
+  Tên hiển thị gốc (còn nguyên dấu) được lưu trong user metadata.
+  - Đánh đổi đã chấp nhận: không có khôi phục mật khẩu qua email, vì các địa
+    chỉ đó không nhận được thư. Nhóm 5 người thì reset tay trong dashboard.
+  - Ràng buộc vận hành: project phải tắt **Confirm email**, nếu không Supabase
+    sẽ cố gửi thư xác nhận tới một địa chỉ không tồn tại và signup fail.
+- Sau khi đăng nhập, user hoặc tạo trip mới, hoặc nhập **Trip Code** để join
+  trip đã có sẵn (trip code là cơ chế mời/join, không phải cơ chế xác thực).
+- Một tài khoản có thể là thành viên của nhiều trip.
 - `display_name` được đặt lúc tạo/join trip, mặc định điền sẵn từ Google profile
   (`full_name`) và sửa được ngay tại màn hình đó. Không có màn hình đổi tên về
   sau — với nhóm 5 người quen nhau thì không đáng làm.
@@ -213,10 +219,9 @@ touch targets, currency formatted as VND with thousands separators.
   Google and reloading the page, the session is restored. If supabase-kt's
   default session manager does not persist on wasmJs, implement a custom
   `SessionManager` backed by `window.localStorage`.
-- **Google OAuth redirect flow in a static SPA** — no server-side callback route
-  exists, so the Supabase "Site URL" and "Redirect URLs" must list both the
-  local dev origin and the deployed Vercel origin, and the PKCE code exchange
-  must complete client-side on page load.
+- **Name collisions** — two members whose names fold to the same slug share one
+  account. Acceptable for a five-person trip; the second person just gets
+  "tên này đã có người dùng" and picks another.
 - **Realtime under RLS** — verify change events actually arrive for a second
   signed-in member, not just the row's author.
 - **Trip code collision** on trip creation — retry with a new random code on

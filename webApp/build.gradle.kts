@@ -14,7 +14,15 @@ kotlin {
 
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
-        browser()
+        browser {
+            // Webpack's default dev devtool wraps modules in eval(), and
+            // `import.meta` — which the Kotlin/Wasm glue emits — is a SyntaxError
+            // inside eval(). Without this the dev server serves a bundle that
+            // throws before Compose can mount.
+            commonWebpackConfig {
+                devtool = "source-map"
+            }
+        }
         binaries.executable()
     }
 
