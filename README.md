@@ -33,6 +33,13 @@ toolchain hiện tại (bundle Karma của target wasm lỗi
 Toàn bộ code được test nằm trong `commonMain` nên chạy trên `js` là tương đương.
 App vẫn ship bằng `wasmJs`.
 
+## Đang chạy tại
+
+**https://dalat-trip-two.vercel.app**
+
+(Vercel thêm hậu tố `-two` vì tên `dalat-trip.vercel.app` đã bị một project
+không liên quan chiếm.)
+
 ## Deploy
 
 ```bash
@@ -40,7 +47,12 @@ App vẫn ship bằng `wasmJs`.
 ```
 
 Build bundle tại chỗ rồi đẩy file tĩnh lên Vercel — build image của Vercel không
-có sẵn Gradle/JDK nên không build trên đó được. Cần `vercel login` một lần trước.
+có sẵn Gradle/JDK nên không build trên đó được. Cần `npx vercel login` một lần
+trước.
+
+Lưu ý: URL dạng `dalat-trip-<hash>-<scope>.vercel.app` của từng lần deploy bị
+Vercel Authentication chặn, chỉ domain production ở trên mới vào được tự do.
+Gửi cho nhóm đúng domain production.
 
 ## Supabase
 

@@ -13,7 +13,9 @@ STAGE="build/vercel/dalat-trip"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 cp -r "$DIST"/. "$STAGE"/
-cp vercel.json "$STAGE"/
 
+# No vercel.json: Vercel already serves .wasm as application/wasm, and the app
+# is a single page that never changes the URL, so an SPA rewrite has nothing to
+# catch. A config file that does nothing is worse than none.
 cd "$STAGE"
 npx -y vercel deploy --prod --yes
