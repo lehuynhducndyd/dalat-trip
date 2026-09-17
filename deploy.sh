@@ -4,8 +4,16 @@
 set -euo pipefail
 
 DIST="webApp/build/dist/wasmJs/productionExecutable"
+# Vercel names the project after the deployed directory, so stage the bundle
+# under a directory named like the project rather than "productionExecutable".
+STAGE="build/vercel/dalat-trip"
 
 ./gradlew :webApp:wasmJsBrowserDistribution
-cp vercel.json "$DIST/vercel.json"
-cd "$DIST"
-vercel deploy --prod
+
+rm -rf "$STAGE"
+mkdir -p "$STAGE"
+cp -r "$DIST"/. "$STAGE"/
+cp vercel.json "$STAGE"/
+
+cd "$STAGE"
+npx -y vercel deploy --prod --yes
