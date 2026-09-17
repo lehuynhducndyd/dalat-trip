@@ -33,6 +33,10 @@ fun MoneyText(
         modifier = modifier,
         color = color,
         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+        // A seven-digit amount would otherwise drop its "₫" onto a second line
+        // and shove the surrounding row out of alignment.
+        maxLines = 1,
+        softWrap = false,
     )
 }
 

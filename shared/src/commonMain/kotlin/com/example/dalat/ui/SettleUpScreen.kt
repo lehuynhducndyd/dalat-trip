@@ -37,7 +37,7 @@ fun SettleUpScreen(state: TripUiState, onMarkPaid: (String, String, Boolean) -> 
                     Arrangement.SpaceBetween,
                     Alignment.CenterVertically,
                 ) {
-                    Column {
+                    Column(Modifier.weight(1f)) {
                         Text(state.memberName(balance.memberId))
                         Text(
                             "Đã ứng ${formatVnd(balance.paid)} · Đã dùng ${formatVnd(balance.owed)}",
